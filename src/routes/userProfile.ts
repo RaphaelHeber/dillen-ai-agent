@@ -91,7 +91,7 @@ router.get('/profile', authMiddleware, async (req: Request, res: Response): Prom
       throw new Error(`Profile fetch error: ${error.message}`);
     }
 
-    if (count === 0) {
+    if (count === null || count === 0) {
       throw new Error('Profile not found');
     }
 
