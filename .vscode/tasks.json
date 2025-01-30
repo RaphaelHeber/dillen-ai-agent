@@ -18,6 +18,19 @@
 			"presentation": {
 				"reveal": "silent"
 			}
+		},
+		{
+			"type": "shell",
+			"label": "npm install",
+			"command": "npm",
+			"args": [
+				"install",
+				"@playwright/test",
+				"--save-dev"
+			],
+			"presentation": {
+				"reveal": "silent"
+			}
 		}
 	]
 }

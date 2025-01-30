@@ -44,3 +44,8 @@ sw.js
 sw.js.map
 workbox-*.js
 workbox-*.js.map
+.env.local.backup
+*.json.backup
+dillen---ai-agent-for-managers-firebase-adminsdk*.json
+.env.local.backup
+dillen---ai-agent-for-managers-firebase-adminsdk*.json

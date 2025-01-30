@@ -3,6 +3,17 @@
         {
             "type": "node",
             "request": "launch",
+            "name": "Launch Playwright Tests",
+            "program": "${workspaceFolder}/node_modules/.bin/playwright",
+            "args": [
+                "test"
+            ],
+            "preLaunchTask": "npm install",
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "type": "node",
+            "request": "launch",
             "name": "Launch Program",
             "program": "${workspaceFolder}/server.ts",
             "preLaunchTask": "tsc",
