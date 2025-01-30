@@ -81,17 +81,23 @@ router.get('/profile', authMiddleware, async (req: Request, res: Response): Prom
       res.status(400).json({ error: 'User ID is missing' });
       return;
     }
-    const userRef = db.collection('users').doc(uid);
-    
-    const doc = await userRef.get();
-    if (!doc.exists) {
-      console.log('Profile not found');
-      res.status(404).json({ error: 'Profile not found' });
-      return;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .single();
+
+    if (error) {
+      throw new Error(`Profile fetch error: ${error.message}`);
     }
-    
+
+    if (!data) {
+      throw new Error('Profile not found');
+    }
+
     console.log('Profile fetched successfully');
-    res.json(doc.data());
+    res.json(data);
   } catch (error) {
     if (error instanceof Error) {
       console.error('Profile fetch error:', error.message);
