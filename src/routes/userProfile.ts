@@ -82,22 +82,25 @@ router.get('/profile', authMiddleware, async (req: Request, res: Response): Prom
       return;
     }
 
-    const { data, error } = await supabase
+    const { data, error, count } = await supabase
       .from('profiles')
-      .select('*')
-      .eq('id', uid)
-      .single();
+      .select('*', { count: 'exact' })
+      .eq('id', uid);
 
     if (error) {
       throw new Error(`Profile fetch error: ${error.message}`);
     }
 
-    if (!data) {
+    if (count === 0) {
       throw new Error('Profile not found');
     }
 
+    if (count > 1) {
+      throw new Error('Multiple profiles found');
+    }
+
     console.log('Profile fetched successfully');
-    res.json(data);
+    res.json(data[0]);
   } catch (error) {
     if (error instanceof Error) {
       console.error('Profile fetch error:', error.message);
