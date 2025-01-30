@@ -1,5 +1,4 @@
-// filepath: /Users/raphaelheber/Library/CloudStorage/Dropbox/dillen-ai-agent/src/routes/userProfile.ts
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { Timestamp } from 'firebase-admin/firestore';
 import admin from 'firebase-admin';
 import { UserProfile } from '../types/user';
@@ -15,10 +14,11 @@ declare module 'express-serve-static-core' {
 }
 
 // Middleware to authenticate Firebase token
-const authMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const authMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const token = req.headers.authorization?.split('Bearer ')[1];
   if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
   }
   try {
     const decodedToken = await admin.auth().verifyIdToken(token);
@@ -31,13 +31,14 @@ const authMiddleware = async (req: express.Request, res: express.Response, next:
 };
 
 // Create/Update Profile
-router.post('/profile', authMiddleware, async (req, res) => {
+router.post('/profile', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   console.log('Received request to create/update profile');
   try {
     const uid = req.user?.uid;
     if (!uid) {
       console.log('User ID is missing');
-      return res.status(400).json({ error: 'User ID is missing' });
+      res.status(400).json({ error: 'User ID is missing' });
+      return;
     }
     const userRef = db.collection('users').doc(uid);
     
@@ -70,20 +71,22 @@ router.post('/profile', authMiddleware, async (req, res) => {
 });
 
 // Get Profile
-router.get('/profile', authMiddleware, async (req, res) => {
+router.get('/profile', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   console.log('Received request to get profile');
   try {
     const uid = req.user?.uid;
     if (!uid) {
       console.log('User ID is missing');
-      return res.status(400).json({ error: 'User ID is missing' });
+      res.status(400).json({ error: 'User ID is missing' });
+      return;
     }
     const userRef = db.collection('users').doc(uid);
     
     const doc = await userRef.get();
     if (!doc.exists) {
       console.log('Profile not found');
-      return res.status(404).json({ error: 'Profile not found' });
+      res.status(404).json({ error: 'Profile not found' });
+      return;
     }
     
     console.log('Profile fetched successfully');
@@ -100,14 +103,15 @@ router.get('/profile', authMiddleware, async (req, res) => {
 });
 
 // Update Onboarding Status
-router.put('/profile/onboarding', authMiddleware, async (req, res) => {
+router.put('/profile/onboarding', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   console.log('Received request to update onboarding status');
   try {
     const { step, completed } = req.body;
     const uid = req.user?.uid;
     if (!uid) {
       console.log('User ID is missing');
-      return res.status(400).json({ error: 'User ID is missing' });
+      res.status(400).json({ error: 'User ID is missing' });
+      return;
     }
     const userRef = db.collection('users').doc(uid);
     

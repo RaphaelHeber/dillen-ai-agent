@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { app } from '../src/server'; // Import the app
+import app from '../src/server'; // Import the app
 import admin from 'firebase-admin';
 
 describe('Integration Tests', () => {
@@ -11,7 +11,19 @@ describe('Integration Tests', () => {
 
   it('should verify Firebase Auth integration', async () => {
     const token = 'valid-firebase-token';
-    const decodedToken = { uid: 'test-uid' };
+    const decodedToken = {
+      uid: 'test-uid',
+      aud: '',
+      auth_time: 0,
+      exp: 0,
+      firebase: {
+        identities: {},
+        sign_in_provider: ''
+      },
+      iat: 0,
+      iss: '',
+      sub: ''
+    };
 
     jest.spyOn(admin.auth(), 'verifyIdToken').mockResolvedValue(decodedToken);
 

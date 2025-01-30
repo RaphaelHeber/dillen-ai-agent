@@ -1,5 +1,4 @@
-import './config/firebase'; // Ensure this is the first import
-import express from 'express';
+import express, { Request, Response } from 'express';
 import cors from 'cors';
 import userProfileRouter from './routes/userProfile';
 import { requestLogger, responseTimeLogger, errorLogger } from './middleware/logging';
@@ -14,7 +13,7 @@ app.use('/api/users', userProfileRouter);
 app.use(errorLogger);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'healthy' });
 });
 
@@ -24,4 +23,4 @@ app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
 
-export default app; // Export the app
+export default app;
