@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { Timestamp } from 'firebase-admin/firestore';
 import admin from 'firebase-admin';
 import { UserProfile } from '../types/user';
+import { supabase } from '../utils/supabaseClient';
 
 const router = express.Router();
 const db = admin.firestore();
