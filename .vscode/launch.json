@@ -1,0 +1,28 @@
+{
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Program",
+            "program": "${workspaceFolder}/server.ts",
+            "preLaunchTask": "tsc",
+            "envFile": "${workspaceFolder}/.env",
+            "internalConsoleOptions": "neverOpen",
+            "env": {
+                "PORT": "4002"
+            }
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Launch Program",
+            "program": "${workspaceFolder}/dist/server.js",
+            "preLaunchTask": "tsc",
+            "envFile": "${workspaceFolder}/.env",
+            "internalConsoleOptions": "neverOpen",
+            "env": {
+                "PORT": "4002"
+            }
+        }
+    ]
+}
