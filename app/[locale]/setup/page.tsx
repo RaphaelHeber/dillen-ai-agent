@@ -1,108 +1,82 @@
 "use client"
 
-import { ChatbotUIContext } from "@/context/context"
-import { getProfileByUserId, updateProfile } from "@/db/profile"
-import {
-  getHomeWorkspaceByUserId,
-  getWorkspacesByUserId
-} from "@/db/workspaces"
-import {
-  fetchHostedModels,
-  fetchOpenRouterModels
-} from "@/lib/models/fetch-models"
-import { supabase } from "@/lib/supabase/browser-client"
-import { TablesUpdate } from "@/supabase/types"
+import { Brand } from "@/components/ui/brand"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { SubmitButton } from "@/components/ui/submit-button"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useRouter } from "next/navigation"
-import { useContext, useEffect, useState } from "react"
-import { APIStep } from "../../../components/setup/api-step"
-import { FinishStep } from "../../../components/setup/finish-step"
-import { ProfileStep } from "../../../components/setup/profile-step"
-import {
-  SETUP_STEP_COUNT,
-  StepContainer
-} from "../../../components/setup/step-container"
+import { useEffect, useState } from "react"
+import { StepContainer } from "@/components/setup/step-container"
+import { ProfileStep } from "@/components/setup/profile-step"
+import { FinishStep } from "@/components/setup/finish-step"
+
+export const SETUP_STEP_COUNT = 2 // Reduced to 2 steps: Profile and Finish
 
 export default function SetupPage() {
-  const {
-    profile,
-    setProfile,
-    setWorkspaces,
-    setSelectedWorkspace,
-    setEnvKeyMap,
-    setAvailableHostedModels,
-    setAvailableOpenRouterModels
-  } = useContext(ChatbotUIContext)
-
   const router = useRouter()
+  const supabase = createClientComponentClient()
 
   const [loading, setLoading] = useState(true)
-
   const [currentStep, setCurrentStep] = useState(1)
+  const [error, setError] = useState<string>("")
 
   // Profile Step
   const [displayName, setDisplayName] = useState("")
-  const [username, setUsername] = useState(profile?.username || "")
+  const [username, setUsername] = useState("")
   const [usernameAvailable, setUsernameAvailable] = useState(true)
 
-  // API Step
-  const [useAzureOpenai, setUseAzureOpenai] = useState(false)
-  const [openaiAPIKey, setOpenaiAPIKey] = useState("")
-  const [openaiOrgID, setOpenaiOrgID] = useState("")
-  const [azureOpenaiAPIKey, setAzureOpenaiAPIKey] = useState("")
-  const [azureOpenaiEndpoint, setAzureOpenaiEndpoint] = useState("")
-  const [azureOpenai35TurboID, setAzureOpenai35TurboID] = useState("")
-  const [azureOpenai45TurboID, setAzureOpenai45TurboID] = useState("")
-  const [azureOpenai45VisionID, setAzureOpenai45VisionID] = useState("")
-  const [azureOpenaiEmbeddingsID, setAzureOpenaiEmbeddingsID] = useState("")
-  const [anthropicAPIKey, setAnthropicAPIKey] = useState("")
-  const [googleGeminiAPIKey, setGoogleGeminiAPIKey] = useState("")
-  const [mistralAPIKey, setMistralAPIKey] = useState("")
-  const [groqAPIKey, setGroqAPIKey] = useState("")
-  const [perplexityAPIKey, setPerplexityAPIKey] = useState("")
-  const [openrouterAPIKey, setOpenrouterAPIKey] = useState("")
-
   useEffect(() => {
-    ;(async () => {
-      const session = (await supabase.auth.getSession()).data.session
+    const checkSession = async () => {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
 
       if (!session) {
         return router.push("/login")
-      } else {
-        const user = session.user
-
-        const profile = await getProfileByUserId(user.id)
-        setProfile(profile)
-        setUsername(profile.username)
-
-        if (!profile.has_onboarded) {
-          setLoading(false)
-        } else {
-          const data = await fetchHostedModels(profile)
-
-          if (!data) return
-
-          setEnvKeyMap(data.envKeyMap)
-          setAvailableHostedModels(data.hostedModels)
-
-          if (profile["openrouter_api_key"] || data.envKeyMap["openrouter"]) {
-            const openRouterModels = await fetchOpenRouterModels()
-            if (!openRouterModels) return
-            setAvailableOpenRouterModels(openRouterModels)
-          }
-
-          const homeWorkspaceId = await getHomeWorkspaceByUserId(
-            session.user.id
-          )
-          return router.push(`/${homeWorkspaceId}/chat`)
-        }
       }
-    })()
-  }, [])
 
-  const handleShouldProceed = (proceed: boolean) => {
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", session.user.id)
+          .single()
+
+        if (profile?.has_onboarded) {
+          // If user has already onboarded, redirect to home workspace
+          const { data: workspace } = await supabase
+            .from("workspaces")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .eq("is_home", true)
+            .single()
+
+          if (workspace) {
+            return router.push(`/${workspace.id}/chat`)
+          }
+        }
+
+        if (profile) {
+          setUsername(profile.username || "")
+          setDisplayName(profile.display_name || "")
+        }
+
+        setLoading(false)
+      } catch (error) {
+        console.error("Setup error:", error)
+        setError("Failed to load profile")
+        setLoading(false)
+      }
+    }
+
+    checkSession()
+  }, [router, supabase])
+
+  const handleShouldProceed = async (proceed: boolean) => {
     if (proceed) {
       if (currentStep === SETUP_STEP_COUNT) {
-        handleSaveSetupSetting()
+        await handleSaveSetup()
       } else {
         setCurrentStep(currentStep + 1)
       }
@@ -111,59 +85,58 @@ export default function SetupPage() {
     }
   }
 
-  const handleSaveSetupSetting = async () => {
-    const session = (await supabase.auth.getSession()).data.session
-    if (!session) {
-      return router.push("/login")
+  const handleSaveSetup = async () => {
+    try {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession()
+      if (!session) return router.push("/login")
+
+      // Update profile
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          display_name: displayName,
+          username: username,
+          has_onboarded: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", session.user.id)
+        .select()
+        .single()
+
+      if (profileError) throw profileError
+
+      // Create home workspace if it doesn't exist
+      const { data: workspace, error: workspaceError } = await supabase
+        .from("workspaces")
+        .insert([
+          {
+            name: `${displayName}'s Workspace`,
+            user_id: session.user.id,
+            is_home: true
+          }
+        ])
+        .select()
+        .single()
+
+      if (workspaceError) throw workspaceError
+
+      return router.push(`/${workspace.id}/chat`)
+    } catch (error) {
+      console.error("Save setup error:", error)
+      setError("Failed to save setup")
     }
-
-    const user = session.user
-    const profile = await getProfileByUserId(user.id)
-
-    const updateProfilePayload: TablesUpdate<"profiles"> = {
-      ...profile,
-      has_onboarded: true,
-      display_name: displayName,
-      username,
-      openai_api_key: openaiAPIKey,
-      openai_organization_id: openaiOrgID,
-      anthropic_api_key: anthropicAPIKey,
-      google_gemini_api_key: googleGeminiAPIKey,
-      mistral_api_key: mistralAPIKey,
-      groq_api_key: groqAPIKey,
-      perplexity_api_key: perplexityAPIKey,
-      openrouter_api_key: openrouterAPIKey,
-      use_azure_openai: useAzureOpenai,
-      azure_openai_api_key: azureOpenaiAPIKey,
-      azure_openai_endpoint: azureOpenaiEndpoint,
-      azure_openai_35_turbo_id: azureOpenai35TurboID,
-      azure_openai_45_turbo_id: azureOpenai45TurboID,
-      azure_openai_45_vision_id: azureOpenai45VisionID,
-      azure_openai_embeddings_id: azureOpenaiEmbeddingsID
-    }
-
-    const updatedProfile = await updateProfile(profile.id, updateProfilePayload)
-    setProfile(updatedProfile)
-
-    const workspaces = await getWorkspacesByUserId(profile.user_id)
-    const homeWorkspace = workspaces.find(w => w.is_home)
-
-    // There will always be a home workspace
-    setSelectedWorkspace(homeWorkspace!)
-    setWorkspaces(workspaces)
-
-    return router.push(`/${homeWorkspace?.id}/chat`)
   }
 
   const renderStep = (stepNum: number) => {
     switch (stepNum) {
-      // Profile Step
       case 1:
         return (
           <StepContainer
             stepDescription="Let's create your profile."
             stepNum={currentStep}
-            stepTitle="Welcome to Chatbot UI"
+            stepTitle="Welcome to Dillen AI Agent"
             onShouldProceed={handleShouldProceed}
             showNextButton={!!(username && usernameAvailable)}
             showBackButton={false}
@@ -179,57 +152,10 @@ export default function SetupPage() {
           </StepContainer>
         )
 
-      // API Step
       case 2:
         return (
           <StepContainer
-            stepDescription="Enter API keys for each service you'd like to use."
-            stepNum={currentStep}
-            stepTitle="Set API Keys (optional)"
-            onShouldProceed={handleShouldProceed}
-            showNextButton={true}
-            showBackButton={true}
-          >
-            <APIStep
-              openaiAPIKey={openaiAPIKey}
-              openaiOrgID={openaiOrgID}
-              azureOpenaiAPIKey={azureOpenaiAPIKey}
-              azureOpenaiEndpoint={azureOpenaiEndpoint}
-              azureOpenai35TurboID={azureOpenai35TurboID}
-              azureOpenai45TurboID={azureOpenai45TurboID}
-              azureOpenai45VisionID={azureOpenai45VisionID}
-              azureOpenaiEmbeddingsID={azureOpenaiEmbeddingsID}
-              anthropicAPIKey={anthropicAPIKey}
-              googleGeminiAPIKey={googleGeminiAPIKey}
-              mistralAPIKey={mistralAPIKey}
-              groqAPIKey={groqAPIKey}
-              perplexityAPIKey={perplexityAPIKey}
-              useAzureOpenai={useAzureOpenai}
-              onOpenaiAPIKeyChange={setOpenaiAPIKey}
-              onOpenaiOrgIDChange={setOpenaiOrgID}
-              onAzureOpenaiAPIKeyChange={setAzureOpenaiAPIKey}
-              onAzureOpenaiEndpointChange={setAzureOpenaiEndpoint}
-              onAzureOpenai35TurboIDChange={setAzureOpenai35TurboID}
-              onAzureOpenai45TurboIDChange={setAzureOpenai45TurboID}
-              onAzureOpenai45VisionIDChange={setAzureOpenai45VisionID}
-              onAzureOpenaiEmbeddingsIDChange={setAzureOpenaiEmbeddingsID}
-              onAnthropicAPIKeyChange={setAnthropicAPIKey}
-              onGoogleGeminiAPIKeyChange={setGoogleGeminiAPIKey}
-              onMistralAPIKeyChange={setMistralAPIKey}
-              onGroqAPIKeyChange={setGroqAPIKey}
-              onPerplexityAPIKeyChange={setPerplexityAPIKey}
-              onUseAzureOpenaiChange={setUseAzureOpenai}
-              openrouterAPIKey={openrouterAPIKey}
-              onOpenrouterAPIKeyChange={setOpenrouterAPIKey}
-            />
-          </StepContainer>
-        )
-
-      // Finish Step
-      case 3:
-        return (
-          <StepContainer
-            stepDescription="You are all set up!"
+            stepDescription="You're all set!"
             stepNum={currentStep}
             stepTitle="Setup Complete"
             onShouldProceed={handleShouldProceed}
@@ -239,13 +165,26 @@ export default function SetupPage() {
             <FinishStep displayName={displayName} />
           </StepContainer>
         )
+
       default:
         return null
     }
   }
 
   if (loading) {
-    return null
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div>Loading...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-red-500">{error}</div>
+      </div>
+    )
   }
 
   return (
