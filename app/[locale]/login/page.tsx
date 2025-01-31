@@ -1,3 +1,4 @@
+// app/[locale]/login/page.tsx
 import { Brand } from "@/components/ui/brand"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,18 +35,28 @@ export default async function Login({
   const session = (await supabase.auth.getSession()).data.session
 
   if (session) {
-    const { data: homeWorkspace, error } = await supabase
-      .from("workspaces")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .eq("is_home", true)
-      .single()
+    try {
+      const { data: homeWorkspaces, error } = await supabase
+        .from("workspaces")
+        .select("*")
+        .eq("user_id", session.user.id)
+        .eq("is_home", true)
 
-    if (!homeWorkspace) {
-      throw new Error(error.message)
+      // Check if we have any workspaces
+      if (error) throw error
+
+      // If no workspaces found, redirect to setup
+      if (!homeWorkspaces || homeWorkspaces.length === 0) {
+        return redirect("/setup")
+      }
+
+      // Use the first home workspace if multiple exist
+      const homeWorkspace = homeWorkspaces[0]
+      return redirect(`/${homeWorkspace.id}/chat`)
+    } catch (error: any) {
+      console.error("Error fetching home workspace:", error)
+      return redirect("/setup")
     }
-
-    return redirect(`/${homeWorkspace.id}/chat`)
   }
 
   const signIn = async (formData: FormData) => {
@@ -65,20 +76,25 @@ export default async function Login({
       return redirect(`/login?message=${error.message}`)
     }
 
-    const { data: homeWorkspace, error: homeWorkspaceError } = await supabase
-      .from("workspaces")
-      .select("*")
-      .eq("user_id", data.user.id)
-      .eq("is_home", true)
-      .single()
+    try {
+      const { data: homeWorkspaces, error: homeWorkspaceError } = await supabase
+        .from("workspaces")
+        .select("*")
+        .eq("user_id", data.user.id)
+        .eq("is_home", true)
 
-    if (!homeWorkspace) {
-      throw new Error(
-        homeWorkspaceError?.message || "An unexpected error occurred"
-      )
+      if (homeWorkspaceError) throw homeWorkspaceError
+
+      if (!homeWorkspaces || homeWorkspaces.length === 0) {
+        return redirect("/setup")
+      }
+
+      const homeWorkspace = homeWorkspaces[0]
+      return redirect(`/${homeWorkspace.id}/chat`)
+    } catch (error: any) {
+      console.error("Error fetching home workspace:", error)
+      return redirect("/setup")
     }
-
-    return redirect(`/${homeWorkspace.id}/chat`)
   }
 
   const getEnvVarOrEdgeConfigValue = async (name: string) => {
@@ -86,7 +102,6 @@ export default async function Login({
     if (process.env.EDGE_CONFIG) {
       return await get<string>(name)
     }
-
     return process.env[name]
   }
 
@@ -108,7 +123,6 @@ export default async function Login({
       ? emailWhitelistPatternsString?.split(",")
       : []
 
-    // If there are whitelist patterns, check if the email is allowed to sign up
     if (emailDomainWhitelist.length > 0 || emailWhitelist.length > 0) {
       const domainMatch = emailDomainWhitelist?.includes(email.split("@")[1])
       const emailMatch = emailWhitelist?.includes(email)
@@ -125,10 +139,7 @@ export default async function Login({
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        // USE IF YOU WANT TO SEND EMAIL VERIFICATION, ALSO CHANGE TOML FILE
-        // emailRedirectTo: `${origin}/auth/callback`
-      }
+      options: {}
     })
 
     if (error) {
@@ -137,9 +148,6 @@ export default async function Login({
     }
 
     return redirect("/setup")
-
-    // USE IF YOU WANT TO SEND EMAIL VERIFICATION, ALSO CHANGE TOML FILE
-    // return redirect("/login?message=Check email to continue sign in process")
   }
 
   const handleResetPassword = async (formData: FormData) => {
@@ -187,6 +195,7 @@ export default async function Login({
           type="password"
           name="password"
           placeholder="••••••••"
+          required
         />
 
         <SubmitButton className="mb-2 rounded-md bg-blue-700 px-4 py-2 text-white">
